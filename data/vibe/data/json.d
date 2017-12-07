@@ -1212,8 +1212,12 @@ Json parseJson(R)(ref R range, int* line = null, string filename = null)
 				enforceJson(!range.empty, "Missing ']' before EOF.", filename, line);
 				enforceJson(range.front == ',' || range.front == ']',
 					format("Expected ']' or ',' - got '%s'.", range.front), filename, line);
-				if( range.front == ']' ) break;
-				else range.popFront();
+				if (range.front == ']') break;
+				else {
+					range.popFront();
+					enforceJson(!range.empty, "Expected value before EOF.", filename, line);
+					enforceJson(range.front != ']', "Expected value before ']'.", filename, line);
+				}
 			}
 			range.popFront();
 			ret = arr.data;
@@ -1237,7 +1241,11 @@ Json parseJson(R)(ref R range, int* line = null, string filename = null)
 				enforceJson(range.front == ',' || range.front == '}',
 					format("Expected '}' or ',' - got '%s'.", range.front), filename, line);
 				if (range.front == '}') break;
-				else range.popFront();
+				else {
+					range.popFront();
+					enforceJson(!range.empty, "Expected value before EOF.", filename, line);
+					enforceJson(range.front != '}', "Expected value before '}'.", filename, line);
+				}
 			}
 			range.popFront();
 			ret = obj;
@@ -2501,4 +2509,17 @@ private auto trustedRange(R)(R range)
 	assert(b.foos.length == 1);
 	assert(b.foos[0].i == 2);
 	assert(b.foos[0].foos.length == 0);
+}
+
+unittest { // #1994 - make sure trailing commas are not accepted
+	assertThrown(parseJsonString(`{"foo": "bar",}`));
+	assertThrown(parseJsonString(`["foo",]`));
+	assertThrown(deserializeJson!(string[string])(`{"foo": "bar",}`));
+	assertThrown(deserializeJson!(string[])(`["foo",]`));
+
+	// test leading comma
+	assertThrown(parseJsonString(`{,"foo": "bar"}`));
+	assertThrown(parseJsonString(`[,"foo"]`));
+	assertThrown(deserializeJson!(string[string])(`{,"foo": "bar"}`));
+	assertThrown(deserializeJson!(string[])(`[,"foo"]`));
 }
